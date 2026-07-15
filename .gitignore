@@ -1,0 +1,66 @@
+# macOS and editor noise
+.DS_Store
+*.swp
+*.swo
+
+# Python bytecode and local tooling caches
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+.eggs/
+build/
+dist/
+.coverage
+htmlcov/
+
+# Local environments and secrets
+.venv/
+venv/
+env/
+.env
+.env.*
+!.env.example
+
+# Notebook runtime artifacts
+.ipynb_checkpoints/
+
+# Local reference documents
+/Masterarbeit*.pdf
+/Masterarbeit_Latex_project/
+
+# Legacy import source. Keep this local until files are deliberately copied
+# into the clean repository layout.
+/ARC/
+
+# Generated data, model outputs, logs, and experiment trackers
+/data/
+/datasets/
+/artifacts/
+/outputs/
+/runs/
+/checkpoints/
+/models/
+/logs/
+/wandb/
+/mlruns/
+nfs_share/
+*.log
+
+# Large ML artifacts should not enter the repo by accident.
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+*.bin
+*.gguf
+
+# Archives and packaged outputs
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.7z

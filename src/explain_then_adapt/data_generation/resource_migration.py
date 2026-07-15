@@ -1,0 +1,171 @@
+"""Deterministic migration of small reasoning-generation resources."""
+
+import json
+from pathlib import Path
+from typing import Any, Dict, List, Mapping, Sequence, Set, Tuple
+
+from .hints import Hint, HintStatus, load_task_hint
+from .records import HintMode, write_jsonl
+
+
+SCHEMA_VERSION = 1
+EXPECTED_TASK_COUNT = 624
+EXPECTED_LEGACY_TASK_COUNT = 391
+EXPECTED_HINT_COUNT = 481
+FEW_SHOT_TASK_IDS: Tuple[str, ...] = (
+    "6430c8c4",
+    "7c008303",
+    "08ed6ac7",
+    "60b61512",
+    "f25fbde4",
+)
+
+
+def _load_json(path: Path) -> Any:
+    with path.open("r", encoding="utf-8") as file:
+        return json.load(file)
+
+
+def _load_task_ids(path: Path) -> List[str]:
+    value = _load_json(path)
+    if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+        raise ValueError(f"{path} must contain a list of task IDs or task paths.")
+    task_ids = [Path(item).stem for item in value]
+    if len(task_ids) != len(set(task_ids)):
+        raise ValueError(f"{path} contains duplicate task IDs.")
+    return task_ids
+
+
+def _load_traces(path: Path) -> Dict[str, str]:
+    value = _load_json(path)
+    if not isinstance(value, Mapping):
+        raise ValueError(f"{path} must contain a task-ID-to-trace mapping.")
+    traces: Dict[str, str] = {}
+    for task_id, trace in value.items():
+        if (
+            not isinstance(task_id, str)
+            or not isinstance(trace, str)
+            or not trace.strip()
+        ):
+            raise ValueError(f"{path} contains an invalid trace record.")
+        traces[task_id] = trace.strip()
+    return traces
+
+
+def _collect_hints(
+    task_ids: Sequence[str],
+    hints_directory: Path,
+) -> Tuple[Dict[str, Hint], Dict[str, HintStatus]]:
+    hints: Dict[str, Hint] = {}
+    statuses: Dict[str, HintStatus] = {}
+    for task_id in task_ids:
+        result = load_task_hint(task_id, hints_directory)
+        statuses[task_id] = result.status
+        if result.status is HintStatus.COMPLETE:
+            if result.hint is None:
+                raise ValueError(f"complete hint {task_id!r} has no content.")
+            hints[task_id] = result.hint
+    return hints, statuses
+
+
+def migrate_reasoning_resources(
+    *,
+    task_ids_path: Path,
+    legacy_task_ids_path: Path,
+    hints_directory: Path,
+    traces_path: Path,
+    output_directory: Path,
+) -> Mapping[str, int]:
+    """Build the canonical small resources from explicitly supplied legacy inputs."""
+    task_ids = _load_task_ids(task_ids_path)
+    legacy_task_ids = _load_task_ids(legacy_task_ids_path)
+    task_id_set = set(task_ids)
+    legacy_task_id_set = set(legacy_task_ids)
+
+    if len(task_ids) != EXPECTED_TASK_COUNT:
+        raise ValueError(
+            f"expected {EXPECTED_TASK_COUNT} final tasks, found {len(task_ids)}."
+        )
+    if len(legacy_task_ids) != EXPECTED_LEGACY_TASK_COUNT:
+        raise ValueError(
+            "expected "
+            f"{EXPECTED_LEGACY_TASK_COUNT} legacy tasks, found {len(legacy_task_ids)}."
+        )
+    if not legacy_task_id_set <= task_id_set:
+        unexpected = sorted(legacy_task_id_set - task_id_set)
+        raise ValueError(f"legacy task IDs missing from final corpus: {unexpected}.")
+
+    hints, hint_statuses = _collect_hints(task_ids, hints_directory)
+    if len(hints) != EXPECTED_HINT_COUNT:
+        raise ValueError(
+            f"expected {EXPECTED_HINT_COUNT} complete hints, found {len(hints)}."
+        )
+
+    traces = _load_traces(traces_path)
+    if set(traces) != task_id_set:
+        missing = sorted(task_id_set - set(traces))
+        extra = sorted(set(traces) - task_id_set)
+        raise ValueError(
+            f"accepted trace IDs do not match the final corpus; missing={missing}, "
+            f"extra={extra}."
+        )
+    if not set(FEW_SHOT_TASK_IDS) <= set(hints):
+        missing = sorted(set(FEW_SHOT_TASK_IDS) - set(hints))
+        raise ValueError(f"few-shot tasks require complete hints: {missing}.")
+
+    hint_records = [
+        {
+            "schema_version": SCHEMA_VERSION,
+            "task_id": task_id,
+            **hints[task_id].to_dict(),
+        }
+        for task_id in sorted(hints)
+    ]
+    few_shot_records = [
+        {
+            "schema_version": SCHEMA_VERSION,
+            "task_id": task_id,
+            "trace": traces[task_id],
+        }
+        for task_id in FEW_SHOT_TASK_IDS
+    ]
+    few_shot_set: Set[str] = set(FEW_SHOT_TASK_IDS)
+    manifest_records = []
+    for task_id in sorted(task_ids):
+        hint_status = hint_statuses[task_id]
+        has_hint = hint_status is HintStatus.COMPLETE
+        manifest_records.append(
+            {
+                "schema_version": SCHEMA_VERSION,
+                "task_id": task_id,
+                "corpus_partition": (
+                    "legacy_training_2024"
+                    if task_id in legacy_task_id_set
+                    else "training_2025_addition"
+                ),
+                "hint_status": hint_status.value,
+                "hint_mode": (
+                    HintMode.PROVIDED.value if has_hint else HintMode.NONE.value
+                ),
+                "hint_resource_id": task_id if has_hint else None,
+                "few_shot_pool": task_id in few_shot_set,
+                "accepted_trace_in_legacy_source": True,
+                "historical_validation_route": (
+                    "unknown" if has_hint else "manual_review"
+                ),
+            }
+        )
+
+    output_directory.mkdir(parents=True, exist_ok=True)
+    counts = {
+        "hints": write_jsonl(hint_records, output_directory / "hints.jsonl"),
+        "few_shot_traces": write_jsonl(
+            few_shot_records,
+            output_directory / "few_shot_traces.jsonl",
+        ),
+        "tasks": write_jsonl(
+            manifest_records,
+            output_directory / "task_manifest.jsonl",
+        ),
+    }
+    return counts

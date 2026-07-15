@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "explain-then-adapt"
+version = "0.1.0"
+description = "Combining reasoning traces with test-time training for ARC-AGI."
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = []
+
+[project.optional-dependencies]
+gemini = ["google-genai", "python-dotenv"]
+vllm = ["vllm"]
+
+[project.scripts]
+explain-then-adapt-data = "explain_then_adapt.data_generation.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
