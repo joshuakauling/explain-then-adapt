@@ -36,7 +36,7 @@ def run_vllm_requests(
             "are only supported by provider adapters such as Gemini."
         )
     try:
-        from vllm import LLM, SamplingParams
+            from vllm import LLM, SamplingParams  # type: ignore[import-not-found]
     except ImportError as error:
         raise RuntimeError(
             "Local execution requires the optional 'vllm' dependencies. "

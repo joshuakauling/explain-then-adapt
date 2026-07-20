@@ -44,6 +44,7 @@ from .validation import (
     evaluate_judge_responses,
     parse_judge_verdict,
     record_manual_review,
+    validate_trace_format,
 )
 
 
@@ -425,10 +426,41 @@ def _static_accepted(result: Optional[GenerationResult]) -> bool:
     return isinstance(static, Mapping) and bool(static.get("accepted", False))
 
 
+def _load_base_trace_sources(path: Path) -> List[Tuple[str, str, str]]:
+    """Load selected base traces as ``(source_id, task_id, trace)`` tuples."""
+    sources: List[Tuple[str, str, str]] = []
+    seen_task_ids = set()
+    for record in read_jsonl(path):
+        task_id = record.get("task_id")
+        trace = record.get("trace")
+        if not isinstance(task_id, str) or not task_id.strip():
+            raise ValueError("every base-trace record requires a non-empty task_id.")
+        if task_id in seen_task_ids:
+            raise ValueError(f"duplicate base trace for task {task_id!r}.")
+        if not isinstance(trace, str) or not trace.strip():
+            raise ValueError(f"base trace {task_id!r} has no trace text.")
+        validation = validate_trace_format(trace)
+        if not validation.accepted:
+            raise ValueError(f"base trace {task_id!r} does not match the trace schema.")
+        normalized = validation.normalized_text
+        seen_task_ids.add(task_id)
+        sources.append((f"base-trace-{task_id}", task_id, normalized))
+    return sources
+
+
 def prepare_rewrite(args: argparse.Namespace) -> None:
-    sources = [
-        result for result in read_results(args.sources) if _quality_accepted(result)
-    ]
+    if args.base_traces is not None:
+        sources = _load_base_trace_sources(args.base_traces)
+    else:
+        sources = [
+            (
+                result.request_id,
+                result.task_id,
+                result.normalized_output or result.raw_output,
+            )
+            for result in read_results(args.sources)
+            if _quality_accepted(result)
+        ]
     existing_requests = (
         read_requests(args.existing_requests) if args.existing_requests else []
     )
@@ -446,8 +478,8 @@ def prepare_rewrite(args: argparse.Namespace) -> None:
             ).append(request)
 
     rewrite_requests: List[GenerationRequest] = []
-    for source in sources:
-        prior_requests = requests_by_source.get(source.request_id, [])
+    for source_id, task_id, trace in sources:
+        prior_requests = requests_by_source.get(source_id, [])
         accepted_specs = [
             request.augmentation
             for request in prior_requests
@@ -464,19 +496,18 @@ def prepare_rewrite(args: argparse.Namespace) -> None:
             and augmentation_signature(request.augmentation) not in accepted_signatures
         ]
         specs = plan_augmentation_specs(
-            source_trace_id=source.request_id,
-            example_count=len(load_puzzle_train(source.task_id, args.tasks_dir)),
+            source_trace_id=source_id,
+            example_count=len(load_puzzle_train(task_id, args.tasks_dir)),
             accepted_specs=accepted_specs,
             attempted_specs=attempted_specs,
             target_count=args.target_count,
-            seed=_stable_seed(args.seed, source.task_id, source.request_id),
+            seed=_stable_seed(args.seed, task_id, source_id),
             styles=args.styles,
         )
-        puzzle = load_puzzle_train(source.task_id, args.tasks_dir)
-        trace = source.normalized_output or source.raw_output
+        puzzle = load_puzzle_train(task_id, args.tasks_dir)
         rewrite_requests.extend(
             build_rewrite_request(
-                task_id=source.task_id,
+                task_id=task_id,
                 puzzle=puzzle,
                 accepted_trace=trace,
                 spec=spec,
@@ -646,7 +677,17 @@ def build_parser() -> argparse.ArgumentParser:
         "prepare-rewrite",
         help="plan new rewrites until the accepted target is reached",
     )
-    rewrite.add_argument("--sources", type=Path, required=True)
+    rewrite_sources = rewrite.add_mutually_exclusive_group(required=True)
+    rewrite_sources.add_argument(
+        "--sources",
+        type=Path,
+        help="accepted initial-generation results with validation provenance",
+    )
+    rewrite_sources.add_argument(
+        "--base-traces",
+        type=Path,
+        help="selected strict-valid base traces in the versioned JSONL format",
+    )
     rewrite.add_argument("--tasks-dir", type=Path, required=True)
     rewrite.add_argument("--existing-requests", type=Path)
     rewrite.add_argument("--existing-results", type=Path)

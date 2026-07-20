@@ -5,6 +5,8 @@ from pathlib import Path
 
 from explain_then_adapt.arc.transforms import (
     flip_grid,
+    inverse_transform_individual_grid,
+    invert_value_mapping,
     parse_value_mapping,
     remap_grid_by_value_mapping,
     rotate_grid,
@@ -42,6 +44,30 @@ class TransformTests(unittest.TestCase):
         self.assertEqual(remap_grid_by_value_mapping([[0, 1, 2]], mapping), [[0, 2, 1]])
         with self.assertRaises(ValueError):
             parse_value_mapping("0012345678")
+
+    def test_value_mapping_inverse(self) -> None:
+        mapping = "2479185036"
+
+        inverse = invert_value_mapping(mapping)
+
+        self.assertEqual(
+            remap_grid_by_value_mapping(
+                remap_grid_by_value_mapping([[0, 1, 2, 9]], mapping),
+                inverse,
+            ),
+            [[0, 1, 2, 9]],
+        )
+
+    def test_every_augmentation_can_be_inverted_on_rectangular_grids(self) -> None:
+        mapping = "2479185036"
+
+        for code in ("ID", "R90", "R180", "R270", "FH", "FV", "FD1", "FD2"):
+            with self.subTest(code=code):
+                transformed = transform_individual_grid(self.grid, code, mapping)
+                self.assertEqual(
+                    inverse_transform_individual_grid(transformed, code, mapping),
+                    self.grid,
+                )
 
     def test_legacy_transformation_keywords_remain_supported(self) -> None:
         transformed = transform_individual_grid(

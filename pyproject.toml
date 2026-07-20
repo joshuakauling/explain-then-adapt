@@ -11,8 +11,20 @@ requires-python = ">=3.9"
 dependencies = []
 
 [project.optional-dependencies]
+evaluation = ["PyYAML"]
 gemini = ["google-genai", "python-dotenv"]
-vllm = ["vllm"]
+test = ["PyYAML", "torch", "tqdm"]
+training = [
+  "accelerate",
+  "bitsandbytes",
+  "peft",
+  "PyYAML",
+  "torch",
+  "tqdm",
+  "transformers",
+  "wandb",
+]
+vllm = ["PyYAML", "vllm"]
 
 [project.scripts]
 explain-then-adapt-data = "explain_then_adapt.data_generation.cli:main"

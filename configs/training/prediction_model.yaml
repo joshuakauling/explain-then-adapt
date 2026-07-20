@@ -1,0 +1,121 @@
+schema_version: 1
+seed: 167
+
+model:
+  name: Qwen/Qwen3-4B-Thinking-2507
+  revision: null
+  quantization_bits: 4
+  quantization_type: nf4
+  double_quantization: true
+  dtype: bfloat16
+  attention_implementation: flash_attention_2
+  gradient_checkpointing: true
+
+lora:
+  target_modules:
+    - q_proj
+    - k_proj
+    - v_proj
+    - o_proj
+    - gate_proj
+    - up_proj
+    - down_proj
+  rank: 128
+  alpha: 32
+  dropout: 0.0
+  bias: none
+  use_rslora: false
+  use_dora: false
+
+data:
+  variants_per_task: 100
+  max_sequence_length: 8192
+  grid_delimiter: ""
+  # These blocks deliberately mirror Qwen's chat serialization. The PM data
+  # builder does not call apply_chat_template, which would inject thinking
+  # content into assistant turns for this model family.
+  system_header: "<|im_start|>system\n"
+  user_header: "<|im_start|>user\n"
+  assistant_header: "<|im_start|>assistant\n"
+  message_end: "<|im_end|>\n"
+  pad_to_multiple_of: 8
+  synthetic_task_count: 624
+  rearc_task_count: 400
+  rearc_examples_per_task: 1000
+  rearc_pairs_per_variant: 6
+
+optimization:
+  optimizer: adamw_8bit
+  scheduler: cosine
+  micro_batch_size: 2
+  gradient_accumulation_steps: 8
+  validation_batch_size: 2
+  peak_learning_rate: 1.0e-4
+  end_learning_rate: 2.0e-5
+  warmup_ratio: 0.05
+  warmup_start_factor: 0.1
+  adam_beta1: 0.9
+  adam_beta2: 0.999
+  adam_epsilon: 1.0e-8
+  weight_decay: 0.0
+  max_grad_norm: 1.0
+
+control:
+  log_every_steps: 5
+  validate_every_steps: 80
+  checkpoint_every_steps: 400
+
+loader:
+  num_workers: 0
+  pin_memory: true
+  persistent_workers: false
+
+tracking:
+  wandb_project: Prediction_Models
+
+profiles:
+  guided:
+    data_source: synthetic
+    guided: true
+    ignore_first_response: true
+    initialization: pretrained
+    epochs: 100
+    checkpoint_epochs: []
+    checkpoint_steps: [2500]
+
+  guided_see_first:
+    data_source: synthetic
+    guided: true
+    ignore_first_response: false
+    initialization: pretrained
+    epochs: 100
+    # 624 tasks / global batch 16 = 39 steps per epoch; epoch 40 is step 1560.
+    checkpoint_epochs: [40]
+    checkpoint_steps: []
+
+  unguided:
+    data_source: synthetic
+    guided: false
+    ignore_first_response: true
+    initialization: pretrained
+    epochs: 100
+    checkpoint_epochs: [40, 60]
+    checkpoint_steps: []
+
+  unguided_rearc:
+    data_source: rearc
+    guided: false
+    ignore_first_response: true
+    initialization: pretrained
+    epochs: 100
+    checkpoint_epochs: []
+    checkpoint_steps: []
+
+  guided_rearc:
+    data_source: synthetic
+    guided: true
+    ignore_first_response: true
+    initialization: merged_model
+    epochs: 40
+    checkpoint_epochs: []
+    checkpoint_steps: []

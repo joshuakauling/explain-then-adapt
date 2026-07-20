@@ -15,8 +15,9 @@ The initial generation stage uses:
 
 The small versioned inputs live in
 [`resources/data_generation/`](../../../resources/data_generation/): the final
-task manifest, the complete hint collection, and the five few-shot traces. ARC
-task grids remain a separate local dataset and are supplied through the CLI.
+task manifest, the complete hint collection, the five few-shot traces, and one
+selected base trace for each of the 624 training tasks. ARC task grids remain a
+separate local dataset and are supplied through the CLI.
 
 Hints provide weak supervision through five fields: `general`, `inputs`,
 `outputs`, `transformation`, and `transformation_steps`. A task is treated as
@@ -100,13 +101,21 @@ Each task is augmented through a combination of:
 
 The same transformation is applied to every input and output grid. Because the
 original trace refers to directions, values, and demonstration indices, an LLM
-then rewrites the trace against the transformed task. The rewrite was performed
-locally with gpt-oss-120b through vLLM.
+then rewrites the trace against the transformed task. The rebuilt request format
+supports both Gemini batch inference and local generation through vLLM.
 
 Augmentation proceeds in multiple runs until each task has 100 accepted variants.
 Malformed rewrites are discarded and replaced by newly generated variants. The
 rewrite stage uses static schema validation; it does not run the full five-vote
 LLM judge for every augmented trace.
+
+The historical 97,461-row rewrite corpus is no longer available. It is treated
+as a run artifact described by legacy metadata, not as a dataset distributed by
+this repository. Reproduction starts from the versioned 624 base traces and
+generates a new, explicitly identified corpus through inference.
+
+Surviving augmentation files from older runs are intentionally excluded because
+their source traces cannot be tied reliably to the final selected base traces.
 
 ## Execution Backends
 
@@ -231,6 +240,22 @@ rewrite request and statically validated result files through
 `--existing-requests` and `--existing-results`. Accepted variants count toward
 the default target of 100; rejected attempts are excluded from future plans.
 
+The versioned base-trace resource can be used directly without recreating the
+historical initial-generation result envelopes:
+
+```bash
+python scripts/build_reasoning_data.py prepare-rewrite \
+  --base-traces resources/data_generation/base_reasoning_traces.jsonl \
+  --tasks-dir /path/to/arc/tasks \
+  --target-count 100 \
+  --output /path/to/run/rewrite.requests.jsonl
+```
+
+The generated requests can then be passed to `vllm-run` or exported to Gemini.
+Each new corpus should record its model, sampling configuration, prompt version,
+and validation route rather than claiming byte-level equivalence with the lost
+historical run.
+
 For an initial-generation retry, use `--candidate-start` to continue with a new
 candidate index instead of regenerating an earlier request identity. For
 example, `--candidate-start 1 --candidates-per-task 1` creates only candidate 1.
@@ -242,9 +267,9 @@ source.
 
 ## Data Storage
 
-Full prompts, provider responses, generated traces, and augmented corpora are
-generated artifacts and stay outside Git. The small task manifest, curated
-hints, and few-shot pool are versioned under `resources/data_generation/` because
-they define how generation requests are assembled. A released training corpus
-should be published as a versioned dataset instead of copied into the source
-tree.
+Full prompts, provider responses, rewritten traces, and augmented corpora are
+generated artifacts and stay outside Git. The task manifest, curated hints,
+few-shot pool, and selected 624-task base-trace set are versioned under
+`resources/data_generation/` because they define how rewrite requests are
+assembled. A released training corpus should be published as a versioned
+dataset instead of copied into the source tree.

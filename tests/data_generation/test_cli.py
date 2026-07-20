@@ -251,6 +251,41 @@ class CliTests(unittest.TestCase):
         self.assertEqual(len(requests), 3)
         self.assertTrue(all(request.augmentation is not None for request in requests))
 
+    def test_prepare_rewrite_accepts_selected_base_trace_resource(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            tasks = root / "tasks"
+            tasks.mkdir()
+            write_task(tasks, "target")
+            base_traces = root / "base_traces.jsonl"
+            write_jsonl(
+                [{"schema_version": 1, "task_id": "target", "trace": TRACE}],
+                base_traces,
+            )
+            output = root / "rewrite.requests.jsonl"
+
+            exit_code = main(
+                [
+                    "prepare-rewrite",
+                    "--base-traces",
+                    str(base_traces),
+                    "--tasks-dir",
+                    str(tasks),
+                    "--target-count",
+                    "2",
+                    "--output",
+                    str(output),
+                ]
+            )
+            requests = read_requests(output)
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(len(requests), 2)
+        self.assertEqual(
+            {request.augmentation.source_trace_id for request in requests},
+            {"base-trace-target"},
+        )
+
     def test_evaluate_judges_attaches_strict_five_of_five_provenance(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

@@ -1,17 +1,23 @@
 """Deterministic migration of small reasoning-generation resources."""
 
+from collections import Counter
 import json
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, Sequence, Set, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Set, Tuple
 
 from .hints import Hint, HintStatus, load_task_hint
 from .records import HintMode, write_jsonl
+from .validation import validate_trace_format
 
 
 SCHEMA_VERSION = 1
 EXPECTED_TASK_COUNT = 624
 EXPECTED_LEGACY_TASK_COUNT = 391
 EXPECTED_HINT_COUNT = 481
+EXPECTED_TRACE_REPAIRS = {
+    "insert_missing_think_close": 22,
+    "remove_duplicate_summary_inside_think": 2,
+}
 FEW_SHOT_TASK_IDS: Tuple[str, ...] = (
     "6430c8c4",
     "7c008303",
@@ -50,6 +56,78 @@ def _load_traces(path: Path) -> Dict[str, str]:
             raise ValueError(f"{path} contains an invalid trace record.")
         traces[task_id] = trace.strip()
     return traces
+
+
+def _repair_legacy_trace_format(trace: str) -> Tuple[str, Optional[str]]:
+    """Apply the two narrowly identified format repairs in ``624_best.json``."""
+    if validate_trace_format(trace).accepted:
+        return trace, None
+
+    description_heading = "General natural language description:"
+    think_close = "</think>"
+
+    if (
+        trace.count("<think>") == 1
+        and trace.count(think_close) == 0
+        and trace.count(description_heading) == 1
+    ):
+        heading_start = trace.index(description_heading)
+        repaired = (
+            f"{trace[:heading_start].rstrip()}\n"
+            f"{think_close}\n\n"
+            f"{trace[heading_start:].lstrip()}"
+        )
+        repair = "insert_missing_think_close"
+    elif (
+        trace.count("<think>") == 1
+        and trace.count(think_close) == 1
+        and trace.count(description_heading) == 2
+    ):
+        heading_start = trace.index(description_heading)
+        think_close_start = trace.index(think_close)
+        if heading_start >= think_close_start:
+            raise ValueError("duplicate trace headings are not inside <think>.")
+        repaired = (
+            f"{trace[:heading_start].rstrip()}\n"
+            f"{trace[think_close_start:]}"
+        )
+        repair = "remove_duplicate_summary_inside_think"
+    else:
+        raise ValueError("trace has an unsupported legacy format defect.")
+
+    if not validate_trace_format(repaired).accepted:
+        raise ValueError("legacy trace repair did not produce a valid trace.")
+    return repaired, repair
+
+
+def _repair_traces(
+    traces: Mapping[str, str],
+) -> Tuple[Dict[str, str], List[Dict[str, Any]]]:
+    repaired_traces: Dict[str, str] = {}
+    repair_records: List[Dict[str, Any]] = []
+    for task_id in sorted(traces):
+        trace = traces[task_id]
+        try:
+            repaired_trace, repair = _repair_legacy_trace_format(trace)
+        except ValueError as error:
+            raise ValueError(f"cannot repair trace {task_id!r}: {error}") from error
+        repaired_traces[task_id] = repaired_trace
+        if repair is not None:
+            repair_records.append(
+                {
+                    "schema_version": SCHEMA_VERSION,
+                    "task_id": task_id,
+                    "repair": repair,
+                }
+            )
+
+    repair_counts = Counter(record["repair"] for record in repair_records)
+    if repair_counts != Counter(EXPECTED_TRACE_REPAIRS):
+        raise ValueError(
+            "unexpected accepted-trace repair counts: "
+            f"expected={EXPECTED_TRACE_REPAIRS}, found={dict(repair_counts)}."
+        )
+    return repaired_traces, repair_records
 
 
 def _collect_hints(
@@ -101,14 +179,15 @@ def migrate_reasoning_resources(
             f"expected {EXPECTED_HINT_COUNT} complete hints, found {len(hints)}."
         )
 
-    traces = _load_traces(traces_path)
-    if set(traces) != task_id_set:
-        missing = sorted(task_id_set - set(traces))
-        extra = sorted(set(traces) - task_id_set)
+    legacy_traces = _load_traces(traces_path)
+    if set(legacy_traces) != task_id_set:
+        missing = sorted(task_id_set - set(legacy_traces))
+        extra = sorted(set(legacy_traces) - task_id_set)
         raise ValueError(
             f"accepted trace IDs do not match the final corpus; missing={missing}, "
             f"extra={extra}."
         )
+    traces, trace_repair_records = _repair_traces(legacy_traces)
     if not set(FEW_SHOT_TASK_IDS) <= set(hints):
         missing = sorted(set(FEW_SHOT_TASK_IDS) - set(hints))
         raise ValueError(f"few-shot tasks require complete hints: {missing}.")
@@ -128,6 +207,14 @@ def migrate_reasoning_resources(
             "trace": traces[task_id],
         }
         for task_id in FEW_SHOT_TASK_IDS
+    ]
+    base_trace_records = [
+        {
+            "schema_version": SCHEMA_VERSION,
+            "task_id": task_id,
+            "trace": traces[task_id],
+        }
+        for task_id in sorted(task_ids)
     ]
     few_shot_set: Set[str] = set(FEW_SHOT_TASK_IDS)
     manifest_records = []
@@ -158,6 +245,14 @@ def migrate_reasoning_resources(
 
     output_directory.mkdir(parents=True, exist_ok=True)
     counts = {
+        "base_reasoning_traces": write_jsonl(
+            base_trace_records,
+            output_directory / "base_reasoning_traces.jsonl",
+        ),
+        "base_trace_repairs": write_jsonl(
+            trace_repair_records,
+            output_directory / "base_trace_repairs.jsonl",
+        ),
         "hints": write_jsonl(hint_records, output_directory / "hints.jsonl"),
         "few_shot_traces": write_jsonl(
             few_shot_records,

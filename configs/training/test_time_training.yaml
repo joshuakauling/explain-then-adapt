@@ -1,0 +1,71 @@
+schema_version: 1
+seed: 167
+
+model:
+  name: Qwen/Qwen3-4B-Thinking-2507
+  revision: null
+  quantization_bits: 4
+  quantization_type: nf4
+  double_quantization: true
+  dtype: bfloat16
+  attention_implementation: flash_attention_2
+  gradient_checkpointing: true
+
+lora:
+  target_modules:
+    - q_proj
+    - k_proj
+    - v_proj
+    - o_proj
+    - gate_proj
+    - up_proj
+    - down_proj
+  rank: 32
+  alpha: 16
+  dropout: 0.0
+  bias: none
+  use_rslora: false
+  use_dora: false
+
+data:
+  variants_per_transform: 8
+  max_sequence_length: 16384
+  grid_delimiter: ""
+  system_header: "<|im_start|>system\n"
+  user_header: "<|im_start|>user\n"
+  assistant_header: "<|im_start|>assistant\n"
+  message_end: "<|im_end|>\n"
+  pad_to_multiple_of: 8
+  ignore_first_response: true
+  empty_guidance_content: " "
+  missing_guidance_policy: error
+
+optimization:
+  optimizer: adamw_8bit
+  scheduler: cosine
+  epochs: 1
+  micro_batch_size: 1
+  gradient_accumulation_steps: 1
+  warmup_ratio: 0.5
+  warmup_start_learning_rate: 0.0
+  min_learning_rate: 5.0e-6
+  adam_beta1: 0.9
+  adam_beta2: 0.999
+  adam_epsilon: 1.0e-8
+  weight_decay: 0.0
+  max_grad_norm: 1.0
+
+loader:
+  num_workers: 0
+  pin_memory: true
+  persistent_workers: false
+
+profiles:
+  guided:
+    guidance_mode: guided
+    default_guidance_budget: 64
+    peak_learning_rate: 1.25e-4
+  unguided:
+    guidance_mode: unguided
+    default_guidance_budget: 0
+    peak_learning_rate: 2.0e-4

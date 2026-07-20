@@ -26,6 +26,8 @@ from .io import (
 )
 from .transforms import (
     flip_grid,
+    inverse_transform_individual_grid,
+    invert_value_mapping,
     load_and_transform_full_puzzle,
     parse_value_mapping,
     remap_grid_by_value_mapping,
@@ -53,6 +55,8 @@ __all__ = [
     "format_examples_to_string",
     "format_grid_to_string",
     "format_puzzle_to_string",
+    "inverse_transform_individual_grid",
+    "invert_value_mapping",
     "is_augmented_key",
     "load_and_transform_full_puzzle",
     "load_existing_list",

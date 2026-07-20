@@ -1,0 +1,14 @@
+schema_version: 1
+
+# ARC grids are at most 30 x 30. Larger or ragged model outputs are recorded as
+# parse failures and count as incorrect candidates.
+grid_parser:
+  max_height: 30
+  max_width: 30
+
+# A100 throughput measured for the thesis budget study. The resulting value is
+# a seconds-equivalent approximation, not a hardware-independent FLOP count.
+compute:
+  prefill_tokens_per_second: 5000.0
+  decode_tokens_per_second: 75.0
+  training_token_multiplier: 3.0

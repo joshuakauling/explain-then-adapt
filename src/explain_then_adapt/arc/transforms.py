@@ -75,6 +75,15 @@ def parse_value_mapping(mapping: str) -> List[int]:
     return [int(character) for character in mapping]
 
 
+def invert_value_mapping(mapping: str) -> str:
+    """Return the inverse of a digit permutation used by an augmentation."""
+    parsed_mapping = parse_value_mapping(mapping)
+    inverse = [0] * len(parsed_mapping)
+    for original_value, mapped_value in enumerate(parsed_mapping):
+        inverse[mapped_value] = original_value
+    return "".join(str(value) for value in inverse)
+
+
 def remap_grid_by_value_mapping(grid: Grid, mapping: str) -> Grid:
     """Apply a value permutation to every cell in a grid."""
     copied = _copy_and_validate_grid(grid)
@@ -95,6 +104,37 @@ def transform_individual_grid(
     """Apply value remapping followed by a geometric transformation."""
     remapped = remap_grid_by_value_mapping(grid, value_mapping_str)
     return transform_grid(remapped, transformation_code)
+
+
+def inverse_transform_individual_grid(
+    grid: Grid,
+    transformation_code: str,
+    value_mapping_str: str,
+) -> Grid:
+    """Undo a geometric transformation and value permutation on one grid."""
+    inverse_codes = {
+        "ID": "ID",
+        "R90": "R270",
+        "R180": "R180",
+        "R270": "R90",
+        "FH": "FH",
+        "FV": "FV",
+        "FD1": "FD1",
+        "FD2": "FD2",
+    }
+    normalized_code = transformation_code.upper()
+    try:
+        inverse_code = inverse_codes[normalized_code]
+    except KeyError as error:
+        raise ValueError(
+            f"unknown transformation code {transformation_code!r}; expected one "
+            f"of {TRANSFORM_CODES}."
+        ) from error
+    geometrically_restored = transform_grid(grid, inverse_code)
+    return remap_grid_by_value_mapping(
+        geometrically_restored,
+        invert_value_mapping(value_mapping_str),
+    )
 
 
 def transform_example(
