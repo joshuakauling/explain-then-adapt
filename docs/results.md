@@ -5,10 +5,11 @@ historical results, not measurements from a fresh end-to-end rerun of the
 rebuilt repository. The original model checkpoints are no longer available, so
 new training and inference runs require freshly trained models.
 
-The surviving final Guided prediction artifacts can still be scored. The
-rebuilt evaluator reproduces their reported thesis values exactly and adds a
-stricter solve metric for tasks with multiple test inputs. This distinction is
-made explicit below.
+The surviving final Guided prediction artifacts were retained locally but are
+not distributed with this repository. During the rebuild, the evaluator was
+checked against them and matched their reported thesis values exactly while also
+adding a stricter solve metric for tasks with multiple test inputs. This was a
+local compatibility check, not a regression that an external clone can rerun.
 
 ## Evaluation Conventions
 
@@ -121,9 +122,10 @@ shows diminishing returns.
    tested setup, Explain-then-Adapt is more accurate at high budget but not more
    compute-efficient than Unguided TTT.
 
-## Rebuild Verification
+## Local Evaluator Check
 
-The final Guided artifacts provide the following exact regression target:
+The surviving, non-distributed final Guided artifacts provided the following
+exact local regression target during the rebuild:
 
 | Protocol | Thesis Solve | All-Test-Inputs Solve | Sample Accuracy |
 | --- | ---: | ---: | ---: |
@@ -135,18 +137,26 @@ final result table. The lower strict solve rates come from requiring both test
 inputs to be covered on multi-test tasks; they do not indicate a change in the
 underlying predictions.
 
-The rebuilt code is covered by CPU tests for data contracts, augmentation,
-training-loop behavior, inference planning, inverse transformations, parsing,
-and metric aggregation. Real model execution has not been rerun because the
-historical checkpoints and equivalent GPU hardware are unavailable.
+These values document the completed local check; the prediction artifacts needed
+to repeat it are not part of the public repository. The rebuilt code is covered
+by 111 CPU tests for data contracts, augmentation, training-loop behavior,
+inference planning, inverse transformations, parsing, and metric aggregation.
+Real model training, TTT, and inference have not been rerun end to end because
+the historical checkpoints and compatible GPU resources are unavailable.
 
 ## Limitations
 
 - The reported solve rates measure oracle coverage of a candidate pool. The
   thesis did not train or evaluate a selector that chooses one final candidate.
 - The historical checkpoints and the 97,461-row augmented reasoning corpus no
-  longer exist. Fresh runs can reconstruct the pipeline, but not byte-identical
+  longer exist. The repository documents and reconstructs the pipeline stages,
+  but it is not a turnkey reproduction package and cannot recover byte-identical
   model states or training examples.
+- The rebuilt GPU path has not been revalidated end to end. Training, TTT, and
+  inference should be read as reconstructed research code rather than a
+  currently supported production pipeline.
+- The historical prediction artifacts used for the local evaluator check are not
+  distributed, so an external clone cannot repeat that exact regression.
 - Natural-language guidance can be incomplete or wrong, and the final pipeline
   has no rule verifier before TTT.
 - The cost model depends on measured A100 throughput and is intended for

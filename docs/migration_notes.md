@@ -367,12 +367,14 @@ as Solve in the thesis, so it remains available under the explicit name
 therefore also includes `all_test_inputs_solve`, which requires candidate
 coverage for every test input, as well as test-input and request-level rates.
 
-A temporary conversion of the surviving final Guided-TTT predictions verifies
-numerical compatibility. On `standard32`, the rebuilt evaluator reproduces
-42.14% Thesis Solve and 27.82% sample accuracy; on `augmented64`, it reproduces
-65.28% and 26.44%. The corresponding all-test-input solve rates are 40.95% and
-64.99%, respectively. These supplementary values are not substituted into the
-historical thesis tables.
+A temporary local conversion of the surviving, non-distributed final Guided-TTT
+predictions verified numerical compatibility during the rebuild. On
+`standard32`, the rebuilt evaluator matched 42.14% Thesis Solve and 27.82%
+sample accuracy; on `augmented64`, it matched 65.28% and 26.44%. The corresponding
+all-test-input solve rates are 40.95% and 64.99%, respectively. The source
+prediction artifacts are not included in the repository, so this exact check is
+not externally rerunnable. These supplementary values are not substituted into
+the historical thesis tables.
 
 All generated candidates remain in the denominator for sample accuracy;
 malformed outputs count as incorrect and receive a stable parse status. No

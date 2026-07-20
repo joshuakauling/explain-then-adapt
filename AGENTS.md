@@ -6,9 +6,9 @@ This repository is the clean rebuild of the ARC project. The existing `ARC/`
 directory is a legacy clone and should be treated as a reference source, not as
 the final project layout.
 
-The repository should be readable for external GitHub reviewers, especially in a
-job-application context. The structure should make the project goal, training
-pipeline, and main implementation areas easy to understand quickly.
+The repository should be easy for external contributors and reviewers to
+navigate. Its structure should make the project goal, training pipeline, and
+main implementation areas easy to understand quickly.
 
 ## Decision Discipline
 

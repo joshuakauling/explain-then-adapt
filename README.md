@@ -2,6 +2,28 @@
 
 Combining reasoning traces with test-time training for ARC-AGI.
 
+## Project Status
+
+This repository is a portfolio-oriented reconstruction of the pipeline developed
+for my master's thesis. It preserves the methodology, implementation, experiment
+configuration, and reviewable data contracts, but it is not a turnkey
+reproduction package.
+
+- **Verified here:** 111 CPU tests cover the shared ARC utilities, data
+  generation, training-loop contracts, inference planning, and evaluation.
+- **Historical evidence:** the reported thesis results were not produced by a
+  fresh run of this repository. During the rebuild, the evaluator was checked
+  locally against surviving historical prediction artifacts that are not
+  distributed with the repository.
+- **Not included:** the original model checkpoints, the complete augmented
+  training corpus, and large experiment outputs.
+- **Not revalidated:** offline model training, TTT, and model inference have not
+  been rerun end to end on GPU hardware as part of this rebuild.
+
+See [Methodology](docs/methodology.md), [Results](docs/results.md), and the
+[documented limitations](docs/results.md#limitations) for the precise research
+and reproducibility boundary.
+
 ## Motivation
 
 There are two ARC-AGI ideas that motivated this project.
@@ -75,10 +97,11 @@ The experiments support reasoning-guided adaptation at sufficient budget, but
 not a claim of better compute efficiency.
 
 These are oracle best-of-N thesis results, not single-candidate submission
-accuracy. The rebuilt evaluator reproduces the final Guided figures from the
-surviving prediction artifacts; the original model checkpoints are no longer
-available. See [Results](docs/results.md) for all ablations, the strict
-multi-test metric, the Test 2025 results, and the reproducibility boundary.
+accuracy. During the rebuild, the evaluator was checked locally against the
+surviving, non-distributed final Guided prediction artifacts and matched the
+reported figures. The original model checkpoints are no longer available. See
+[Results](docs/results.md) for all ablations, the strict multi-test metric, the
+Test 2025 results, and the reproducibility boundary.
 
 ## What the Pipeline Needs
 
@@ -183,6 +206,11 @@ Run the current test suite with:
 python -m pip install -e '.[test]'
 python -m unittest discover -s tests -p 'test_*.py'
 ```
+
+This command currently runs 111 CPU tests. It exercises reconstructed data and
+runtime contracts with lightweight test doubles where external providers, model
+weights, or GPU execution would otherwise be required; it is not an end-to-end
+model run.
 
 Install the lightweight evaluation dependency to score existing inference
 artifacts without the GPU stack:
