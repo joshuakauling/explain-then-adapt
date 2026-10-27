@@ -188,65 +188,6 @@ src/explain_then_adapt/
   evaluation/       Prediction parsing, scoring, solve rate, budget metrics.
 ```
 
-## Local Setup
-
-The reusable ARC core has no third-party runtime dependencies. Install the
-package in editable mode from the repository root:
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
-python -m pip install -e .
-```
-
-Run the current test suite with:
-
-```bash
-python -m pip install -e '.[test]'
-python -m unittest discover -s tests -p 'test_*.py'
-```
-
-This command currently runs 111 CPU tests. It exercises reconstructed data and
-runtime contracts with lightweight test doubles where external providers, model
-weights, or GPU execution would otherwise be required; it is not an end-to-end
-model run.
-
-Install the lightweight evaluation dependency to score existing inference
-artifacts without the GPU stack:
-
-```bash
-python -m pip install -e '.[evaluation]'
-```
-
-Provider-specific data-generation dependencies are optional:
-
-```bash
-python -m pip install -e '.[gemini]'
-python -m pip install -e '.[vllm]'
-```
-
-Offline QLoRA training and online TTT use a separate GPU dependency set:
-
-```bash
-python -m pip install -e '.[training]'
-```
-
-The final Reasoning, Prediction, and TTT profiles, external cache builders, and
-the additional Flash Attention requirement are documented in the
-[training README](src/explain_then_adapt/training/README.md).
-
-This keeps the ARC core and its tests independent of API clients and the local
-GPU stack.
-
-For Gemini access, create a local `.env` from `.env.example` and set:
-
-```dotenv
-GEMINI_API_KEY=your_key_here
-```
-
-The Gemini CLI loads this file automatically. `.env` is ignored by Git; API
-keys should not be passed as command-line arguments or committed to the repo.
 
 ## Main Concepts
 
